@@ -8,9 +8,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DEFAULT_TIMEOUT=120 \
     PIP_RETRIES=10
 
+COPY --from=shared_backend_context . /build/shared_backend/
 COPY requirements.txt /build/requirements.txt
 
 RUN python -m venv /opt/venv \
+    && /opt/venv/bin/pip wheel --no-cache-dir --wheel-dir /tmp/wheels /build/shared_backend \
+    && /opt/venv/bin/pip install --no-cache-dir /tmp/wheels/manifeed_shared_backend-*.whl \
     && /opt/venv/bin/pip install --no-cache-dir --timeout 120 --retries 10 -r /build/requirements.txt
 
 FROM python:3.11-slim

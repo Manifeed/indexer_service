@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+from shared_backend.schemas.internal.service_schema import InternalServiceHealthRead
 
 
 class SourceEmbeddingPayloadRead(BaseModel):
@@ -73,8 +74,3 @@ class ArticleEmbeddingIndexRead(BaseModel):
     feeds: list[FeedIndexPayloadRead] = Field(default_factory=list)
     authors: list[AuthorIndexPayloadRead] = Field(default_factory=list)
     img_url: str | None = None
-
-
-class InternalServiceHealthRead(BaseModel):
-    service: str
-    status: str

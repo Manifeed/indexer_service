@@ -3,12 +3,17 @@ from __future__ import annotations
 import os
 import socket
 
+from shared_backend.domain.source_embedding_config import (
+    FIXED_SOURCE_EMBEDDING_MODEL_NAME,
+    resolve_qdrant_api_key,
+    resolve_qdrant_collection_name,
+    resolve_qdrant_url,
+    resolve_source_embedding_dimensions,
+)
 
-BGE_M3_MODEL_NAME = "BAAI/bge-m3"
+BGE_M3_MODEL_NAME = FIXED_SOURCE_EMBEDDING_MODEL_NAME
 DEFAULT_EMBEDDING_SERVICE_URL = "http://127.0.0.1:8000"
 DEFAULT_EMBEDDING_REDIS_QUEUE = "embedding:source_embedding"
-DEFAULT_QDRANT_URL = "http://qdrant:6333"
-DEFAULT_QDRANT_COLLECTION = "article_embeddings"
 DEFAULT_DENSE_DIMENSIONS = 1024
 DEFAULT_EMBEDDING_SERVICE_TIMEOUT_SECONDS = 300.0
 DEFAULT_EMBED_TASK_LEASE_SECONDS = 900
@@ -47,28 +52,10 @@ def resolve_embedding_queue_name() -> str:
     return os.getenv("EMBEDDING_REDIS_QUEUE", DEFAULT_EMBEDDING_REDIS_QUEUE).strip() or DEFAULT_EMBEDDING_REDIS_QUEUE
 
 
-def resolve_qdrant_url() -> str:
-    return _env_url("QDRANT_URL", DEFAULT_QDRANT_URL)
-
-
-def resolve_qdrant_collection_name() -> str:
-    return os.getenv("QDRANT_COLLECTION_NAME", DEFAULT_QDRANT_COLLECTION).strip() or DEFAULT_QDRANT_COLLECTION
-
-
-def resolve_qdrant_api_key() -> str | None:
-    value = os.getenv("QDRANT_API_KEY", "").strip()
-    return value or None
-
-
 def resolve_dense_dimensions() -> int:
-    raw_value = os.getenv("SOURCE_EMBEDDING_DIMENSIONS", "").strip()
-    if raw_value:
-        try:
-            parsed = int(raw_value)
-        except ValueError:
-            parsed = DEFAULT_DENSE_DIMENSIONS
-        if parsed > 0:
-            return parsed
+    parsed = resolve_source_embedding_dimensions()
+    if parsed is not None:
+        return parsed
     return DEFAULT_DENSE_DIMENSIONS
 
 

@@ -11,8 +11,8 @@ from app.clients.qdrant.qdrant_embedding_client import QdrantEmbeddingClient
 from app.database import check_database_ready, check_workers_database_ready
 from app.domain.config import should_start_consumer
 from app.routers.health_router import health_router
-from app.schemas.indexer_schema import InternalServiceHealthRead
 from app.services.consumer_service import EmbeddingQueueConsumer
+from shared_backend.schemas.internal.service_schema import InternalServiceHealthRead
 
 
 @asynccontextmanager

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.schemas.indexer_schema import InternalServiceHealthRead
+from shared_backend.schemas.internal.service_schema import InternalServiceHealthRead
 
 
 health_router = APIRouter(prefix="/internal", tags=["health"])

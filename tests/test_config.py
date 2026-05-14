@@ -6,6 +6,7 @@ from app.domain.config import (
     resolve_embedding_service_api_key,
     resolve_embedding_service_timeout_seconds,
     resolve_embedding_service_url,
+    resolve_dense_dimensions,
     resolve_redis_reconcile_interval_seconds,
 )
 
@@ -61,3 +62,15 @@ def test_resolve_embedding_claim_owner_accepts_override(monkeypatch) -> None:
     monkeypatch.setenv("EMBEDDING_INDEXER_CLAIM_OWNER", "indexer-1")
 
     assert resolve_embedding_claim_owner() == "indexer-1"
+
+
+def test_resolve_dense_dimensions_uses_shared_environment_value(monkeypatch) -> None:
+    monkeypatch.setenv("SOURCE_EMBEDDING_DIMENSIONS", "2048")
+
+    assert resolve_dense_dimensions() == 2048
+
+
+def test_resolve_dense_dimensions_falls_back_to_default(monkeypatch) -> None:
+    monkeypatch.setenv("SOURCE_EMBEDDING_DIMENSIONS", "invalid")
+
+    assert resolve_dense_dimensions() == 1024
