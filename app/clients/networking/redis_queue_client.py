@@ -12,6 +12,10 @@ class RedisQueueClientError(RuntimeError):
     """Raised when the Redis embedding queue is not available."""
 
 
+class RedisQueueUnavailableError(RedisQueueClientError):
+    """Raised when Redis cannot be reached for queue operations."""
+
+
 class RedisQueueClient:
     def __init__(self) -> None:
         self.queue_name = resolve_embedding_queue_name()
@@ -21,7 +25,7 @@ class RedisQueueClient:
         try:
             item = self._client.blpop(self.queue_name, timeout=timeout_seconds)
         except redis.RedisError as exception:
-            raise RedisQueueClientError("Unable to pop embedding queue message") from exception
+            raise RedisQueueUnavailableError("Unable to pop embedding queue message") from exception
         if item is None:
             return None
         _, raw_payload = item
@@ -43,7 +47,7 @@ class RedisQueueClient:
             ]
             return int(self._client.rpush(self.queue_name, *encoded_payloads))
         except redis.RedisError as exception:
-            raise RedisQueueClientError("Unable to enqueue embedding queue messages") from exception
+            raise RedisQueueUnavailableError("Unable to enqueue embedding queue messages") from exception
 
     def enqueue_task_ids(self, task_ids: list[int]) -> int:
         normalized_task_ids = [int(task_id) for task_id in task_ids if int(task_id) > 0]
@@ -55,4 +59,4 @@ class RedisQueueClient:
         try:
             self._client.ping()
         except redis.RedisError as exception:
-            raise RedisQueueClientError("Redis is not ready") from exception
+            raise RedisQueueUnavailableError("Redis is not ready") from exception

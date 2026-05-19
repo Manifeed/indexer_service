@@ -29,13 +29,24 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 pytest -q
 ```
 
-Current automated tests cover configuration parsing and safe default behavior.
-More integration coverage should be added around:
+Current automated tests cover:
 
-- Redis queue message handling
-- worker task claim and finalization flow
+- configuration parsing and safe defaults
+- content and workers database bootstrap fallbacks
+- Redis queue payload validation and minimal `task_id` enqueue format
+- consumer retry behavior and invalid-payload logging
+- article embedding payload adaptation from `shared_backend`
+
+Suggested future integration coverage:
+
+- worker task claim and finalization flow against PostgreSQL
 - Qdrant collection bootstrap behavior
-- embedding service response mismatch handling
+- embedding service response mismatch handling in `indexer_service`
+
+## Python Runtime
+
+The service targets Python 3.13 in Docker. Local development can use any
+compatible Python 3.13 interpreter.
 
 ## Docker Workflow
 

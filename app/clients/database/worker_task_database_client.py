@@ -121,8 +121,8 @@ def mark_embedding_task_completed(
     execution_id: int,
     item_success: int,
     item_error: int,
-) -> bool:
-    result = db.execute(
+) -> None:
+    db.execute(
         text(
             """
             UPDATE worker_tasks
@@ -148,7 +148,6 @@ def mark_embedding_task_completed(
             "item_error": max(0, int(item_error)),
         },
     )
-    return result.rowcount > 0
 
 
 def mark_embedding_task_failed(
@@ -158,8 +157,8 @@ def mark_embedding_task_failed(
     execution_id: int,
     item_error: int,
     error_message: str,
-) -> bool:
-    result = db.execute(
+) -> None:
+    db.execute(
         text(
             """
             UPDATE worker_tasks
@@ -185,7 +184,6 @@ def mark_embedding_task_failed(
             "last_error": error_message[:2000],
         },
     )
-    return result.rowcount > 0
 
 
 def refresh_worker_job_status(

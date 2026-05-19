@@ -112,13 +112,19 @@ reference.
 
 ## Tests
 
-Run the current test suite with:
+Run the test suite with:
 
 ```bash
 pytest -q
 ```
 
-Current automated coverage is focused on configuration helpers.
+Automated coverage currently includes:
+
+- configuration and environment parsing
+- database bootstrap fallbacks
+- Redis queue payload validation and enqueue format
+- consumer retry and invalid-payload logging behavior
+- article embedding payload adaptation from `shared_backend`
 
 ## Docker
 

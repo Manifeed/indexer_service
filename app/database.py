@@ -30,9 +30,6 @@ ContentSessionLocal: sessionmaker[Session] = _CONTENT_DATABASE.write_session_fac
 workers_engine = _WORKERS_DATABASE.write_engine
 WorkersSessionLocal: sessionmaker[Session] = _WORKERS_DATABASE.write_session_factory
 
-# Backward-compatible alias for existing content DB call sites.
-SessionLocal = ContentSessionLocal
-
 
 def get_db_session() -> Generator[Session, None, None]:
     yield from shared_get_db_session(ContentSessionLocal)

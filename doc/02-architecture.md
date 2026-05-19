@@ -42,8 +42,9 @@ timeout.
 
 ### 2. Task claim
 
-The Redis message payload is validated and the matching embedding task is
-claimed in the workers database with a lease owner and lease duration.
+The Redis message payload is validated as `{"task_id": <int>}` and the matching
+embedding task is claimed in the workers database with a lease owner and lease
+duration.
 
 ### 3. Payload rebuild
 

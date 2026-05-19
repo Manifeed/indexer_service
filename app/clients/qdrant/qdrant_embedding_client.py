@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import httpx
 
+from shared_backend.clients.qdrant_client import build_qdrant_collection_config
 from app.domain.config import (
     resolve_dense_dimensions,
     resolve_qdrant_api_key,
@@ -89,17 +90,7 @@ class QdrantEmbeddingClient:
             create_response = self._request(
                 method="PUT",
                 path=f"/collections/{self.collection_name}",
-                json={
-                    "vectors": {
-                        "dense": {
-                            "size": resolve_dense_dimensions(),
-                            "distance": "Cosine",
-                        }
-                    },
-                    "sparse_vectors": {
-                        "sparse": {},
-                    },
-                },
+                json=build_qdrant_collection_config(resolve_dense_dimensions()),
             )
             self._require_success(create_response, "Unable to create Qdrant collection")
             self._ensure_payload_indexes()

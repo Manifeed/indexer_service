@@ -21,4 +21,5 @@ def test_database_module_accepts_read_url_fallbacks(monkeypatch) -> None:
 
     assert database_module.content_engine is not None
     assert database_module.workers_engine is not None
-    assert database_module.SessionLocal is database_module.ContentSessionLocal
+    assert database_module.ContentSessionLocal is not None
+    assert database_module.WorkersSessionLocal is not None

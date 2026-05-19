@@ -5,7 +5,11 @@ import logging
 import time
 from collections.abc import Callable
 
-from app.clients.networking.redis_queue_client import RedisQueueClient
+from app.clients.networking.redis_queue_client import (
+    RedisQueueClient,
+    RedisQueueClientError,
+    RedisQueueUnavailableError,
+)
 from app.clients.database.worker_task_database_client import (
     RUNTIME_COUNTER_EMBEDDING_TASKS_REQUEUED,
     RUNTIME_COUNTER_STALE_REDIS_TASK_IDS_DROPPED,
@@ -26,8 +30,14 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddingQueueConsumer:
-    def __init__(self, redis_client_factory: Callable[[], RedisQueueClient] = RedisQueueClient) -> None:
+    def __init__(
+        self,
+        redis_client_factory: Callable[[], RedisQueueClient] = RedisQueueClient,
+        *,
+        redis_retry_delay_seconds: float = 1.0,
+    ) -> None:
         self._redis_client_factory = redis_client_factory
+        self._redis_retry_delay_seconds = max(0.0, float(redis_retry_delay_seconds))
         self._stopped = asyncio.Event()
         self._lease_seconds = resolve_embed_task_lease_seconds()
         self._claim_owner = resolve_embedding_claim_owner()
@@ -67,6 +77,17 @@ class EmbeddingQueueConsumer:
                 finally:
                     content_session_generator.close()
                     workers_session_generator.close()
+            except RedisQueueUnavailableError as exception:
+                logger.warning(
+                    "Embedding queue consumer cannot reach Redis; retrying in %.1fs: %s",
+                    self._redis_retry_delay_seconds,
+                    exception,
+                )
+                redis_client = self._redis_client_factory()
+                if not self._stopped.is_set() and self._redis_retry_delay_seconds > 0:
+                    await asyncio.sleep(self._redis_retry_delay_seconds)
+            except RedisQueueClientError:
+                logger.exception("Embedding queue consumer received an invalid Redis queue payload")
             except Exception:
                 logger.exception("Embedding queue consumer failed to process a message")
 
