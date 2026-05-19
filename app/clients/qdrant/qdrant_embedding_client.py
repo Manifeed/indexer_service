@@ -55,6 +55,8 @@ class QdrantEmbeddingClient:
             "company_id": article.company_id,
             "company": article.company,
             "country": article.country or "xx",
+            "language": article.language or "xx",
+            "themes": [theme.theme for theme in article.themes],
             "published_at": _published_at_to_unix_seconds(article.published_at),
             "feeds": [feed.model_dump(mode="json") for feed in article.feeds],
             "authors": [author.model_dump(mode="json") for author in article.authors],
@@ -104,6 +106,8 @@ class QdrantEmbeddingClient:
     def _ensure_payload_indexes(self) -> None:
         for field_name, field_schema in (
             ("country", "keyword"),
+            ("language", "keyword"),
+            ("themes", "keyword"),
             ("published_at", "integer"),
             ("company_id", "integer"),
         ):

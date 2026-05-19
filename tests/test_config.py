@@ -7,7 +7,10 @@ from app.domain.config import (
     resolve_embedding_service_timeout_seconds,
     resolve_embedding_service_url,
     resolve_dense_dimensions,
+    resolve_ner_service_url,
+    resolve_pipeline_service_timeout_seconds,
     resolve_redis_reconcile_interval_seconds,
+    resolve_theme_service_url,
 )
 
 
@@ -23,10 +26,24 @@ def test_resolve_embedding_service_url_uses_safe_default(monkeypatch) -> None:
     assert resolve_embedding_service_url() == "http://127.0.0.1:8000"
 
 
+def test_resolve_theme_and_ner_service_urls_read_environment(monkeypatch) -> None:
+    monkeypatch.setenv("THEME_SERVICE_URL", "http://theme:8000")
+    monkeypatch.setenv("NER_SERVICE_URL", "http://ner:8000")
+
+    assert resolve_theme_service_url() == "http://theme:8000"
+    assert resolve_ner_service_url() == "http://ner:8000"
+
+
 def test_resolve_embedding_service_timeout_seconds_reads_environment(monkeypatch) -> None:
     monkeypatch.setenv("EMBEDDING_SERVICE_TIMEOUT_SECONDS", "123")
 
     assert resolve_embedding_service_timeout_seconds() == 123.0
+
+
+def test_resolve_pipeline_service_timeout_seconds_reads_environment(monkeypatch) -> None:
+    monkeypatch.setenv("PIPELINE_SERVICE_TIMEOUT_SECONDS", "45")
+
+    assert resolve_pipeline_service_timeout_seconds() == 45.0
 
 
 def test_resolve_embedding_service_api_key_reads_environment(monkeypatch) -> None:

@@ -24,6 +24,8 @@ def test_get_article_embedding_index_reads_adapts_shared_rows(monkeypatch) -> No
                 company_id=9,
                 company="Acme",
                 country="fr",
+                language="fr",
+                themes=[{"theme": "technology", "confidence": 0.9}],
                 published_at=published_at,
                 feeds=[{"id": 7, "section": "tech"}],
                 authors=[{"id": 11, "name": "Ada"}],
@@ -51,6 +53,10 @@ def test_get_article_embedding_index_reads_adapts_shared_rows(monkeypatch) -> No
     assert article.company_id == 9
     assert article.company == "Acme"
     assert article.country == "fr"
+    assert article.language == "fr"
+    assert len(article.themes) == 1
+    assert article.themes[0].theme == "technology"
+    assert article.themes[0].confidence == 0.9
     assert article.published_at == published_at
     assert len(article.feeds) == 1
     assert article.feeds[0].id == 7

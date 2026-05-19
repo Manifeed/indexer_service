@@ -13,15 +13,26 @@ from shared_backend.domain.source_embedding_config import (
 
 BGE_M3_MODEL_NAME = FIXED_SOURCE_EMBEDDING_MODEL_NAME
 DEFAULT_EMBEDDING_SERVICE_URL = "http://127.0.0.1:8000"
+DEFAULT_THEME_SERVICE_URL = "http://127.0.0.1:8001"
+DEFAULT_NER_SERVICE_URL = "http://127.0.0.1:8002"
 DEFAULT_EMBEDDING_REDIS_QUEUE = "embedding:source_embedding"
 DEFAULT_DENSE_DIMENSIONS = 1024
 DEFAULT_EMBEDDING_SERVICE_TIMEOUT_SECONDS = 300.0
+DEFAULT_PIPELINE_SERVICE_TIMEOUT_SECONDS = 120.0
 DEFAULT_EMBED_TASK_LEASE_SECONDS = 900
 DEFAULT_REDIS_RECONCILE_INTERVAL_SECONDS = 30
 
 
 def resolve_embedding_service_url() -> str:
     return _env_url("EMBEDDING_SERVICE_URL", DEFAULT_EMBEDDING_SERVICE_URL)
+
+
+def resolve_theme_service_url() -> str:
+    return _env_url("THEME_SERVICE_URL", DEFAULT_THEME_SERVICE_URL)
+
+
+def resolve_ner_service_url() -> str:
+    return _env_url("NER_SERVICE_URL", DEFAULT_NER_SERVICE_URL)
 
 
 def resolve_embedding_service_timeout_seconds() -> float:
@@ -37,11 +48,34 @@ def resolve_embedding_service_timeout_seconds() -> float:
     return parsed
 
 
+def resolve_pipeline_service_timeout_seconds() -> float:
+    raw_value = os.getenv("PIPELINE_SERVICE_TIMEOUT_SECONDS", "").strip()
+    if not raw_value:
+        return DEFAULT_PIPELINE_SERVICE_TIMEOUT_SECONDS
+    try:
+        parsed = float(raw_value)
+    except ValueError:
+        return DEFAULT_PIPELINE_SERVICE_TIMEOUT_SECONDS
+    if parsed <= 0:
+        return DEFAULT_PIPELINE_SERVICE_TIMEOUT_SECONDS
+    return parsed
+
+
 def resolve_embedding_service_api_key() -> str:
     value = os.getenv("EMBEDDING_SERVICE_API_KEY", "").strip()
     if value:
         return value
     raise RuntimeError("EMBEDDING_SERVICE_API_KEY is required")
+
+
+def resolve_theme_service_api_key() -> str | None:
+    value = os.getenv("THEME_SERVICE_API_KEY", "").strip()
+    return value or None
+
+
+def resolve_ner_service_api_key() -> str | None:
+    value = os.getenv("NER_SERVICE_API_KEY", "").strip()
+    return value or None
 
 
 def resolve_redis_url() -> str:

@@ -10,6 +10,8 @@ from shared_backend.clients.article_embedding_database_client import (
 )
 
 from app.schemas.indexer_schema import (
+    ArticleNerMentionRead,
+    ArticleThemeRead,
     ArticleEmbeddingIndexRead,
 )
 
@@ -101,4 +103,110 @@ def upsert_embedding_manifest_failed(
             "model_name": model_name,
             "failure_reason": error_message[:1000],
         },
+    )
+
+
+def update_article_language(
+    db: Session,
+    *,
+    article_id: int,
+    language: str,
+) -> None:
+    db.execute(
+        text(
+            """
+            UPDATE articles
+            SET language = COALESCE(NULLIF(:language, ''), 'xx')
+            WHERE article_id = :article_id
+            """
+        ),
+        {
+            "article_id": article_id,
+            "language": language[:2].lower(),
+        },
+    )
+
+
+def replace_article_themes(
+    db: Session,
+    *,
+    article_id: int,
+    themes: list[ArticleThemeRead],
+) -> None:
+    db.execute(
+        text("DELETE FROM article_theme WHERE article_id = :article_id"),
+        {"article_id": article_id},
+    )
+    if not themes:
+        return
+    db.execute(
+        text(
+            """
+            INSERT INTO article_theme (
+                article_id,
+                theme,
+                confidence
+            ) VALUES (
+                :article_id,
+                :theme,
+                :confidence
+            )
+            ON CONFLICT (article_id, theme) DO UPDATE SET
+                confidence = EXCLUDED.confidence
+            """
+        ),
+        [
+            {
+                "article_id": article_id,
+                "theme": theme.theme,
+                "confidence": theme.confidence,
+            }
+            for theme in themes
+        ],
+    )
+
+
+def replace_article_ner_mentions(
+    db: Session,
+    *,
+    article_id: int,
+    mentions: list[ArticleNerMentionRead],
+) -> None:
+    db.execute(
+        text("DELETE FROM article_ner_mention WHERE article_id = :article_id"),
+        {"article_id": article_id},
+    )
+    if not mentions:
+        return
+    db.execute(
+        text(
+            """
+            INSERT INTO article_ner_mention (
+                article_id,
+                label,
+                text,
+                score,
+                start_offset,
+                end_offset
+            ) VALUES (
+                :article_id,
+                :label,
+                :text,
+                :score,
+                :start_offset,
+                :end_offset
+            )
+            """
+        ),
+        [
+            {
+                "article_id": article_id,
+                "label": mention.label,
+                "text": mention.text,
+                "score": mention.score,
+                "start_offset": mention.start_offset,
+                "end_offset": mention.end_offset,
+            }
+            for mention in mentions
+        ],
     )

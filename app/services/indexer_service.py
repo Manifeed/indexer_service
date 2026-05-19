@@ -6,9 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.clients.database.article_embedding_database_client import (
     get_article_embedding_index_reads,
+    replace_article_ner_mentions,
+    replace_article_themes,
+    update_article_language,
     upsert_embedding_manifest_failed,
     upsert_embedding_manifest_indexed,
 )
+from app.clients.networking.ner_service_networking_client import NerServiceNetworkingClient
 from app.clients.database.worker_task_database_client import (
     ClaimedEmbeddingTask,
     RUNTIME_COUNTER_PAYLOAD_REBUILD_FAILURES,
@@ -18,10 +22,15 @@ from app.clients.database.worker_task_database_client import (
     refresh_worker_job_status,
 )
 from app.clients.networking.embedding_service_networking_client import EmbeddingServiceNetworkingClient
+from app.clients.networking.theme_service_networking_client import ThemeServiceNetworkingClient
 from app.clients.qdrant.qdrant_embedding_client import QdrantEmbeddingClient
 from app.domain.config import BGE_M3_MODEL_NAME
+from app.domain.language_detection import FastTextLikeDetector, detect_article_language
 from app.schemas.indexer_schema import (
+    ArticleEmbeddingIndexRead,
     EmbeddingServiceRequestSchema,
+    NerServiceRequestSchema,
+    ThemeServiceRequestSchema,
 )
 
 
@@ -35,7 +44,10 @@ def index_claimed_embedding_task(
     *,
     task: ClaimedEmbeddingTask,
     embedding_client: EmbeddingServiceNetworkingClient | None = None,
+    theme_client: ThemeServiceNetworkingClient | None = None,
+    ner_client: NerServiceNetworkingClient | None = None,
     qdrant_client: QdrantEmbeddingClient | None = None,
+    language_detector: FastTextLikeDetector | None = None,
 ) -> int:
     article_ids = _resolve_article_ids(task)
     articles_by_id = get_article_embedding_index_reads(content_db, article_ids=article_ids)
@@ -55,9 +67,32 @@ def index_claimed_embedding_task(
         return 0
 
     try:
+        ordered_articles = [articles_by_id[article_id] for article_id in article_ids if article_id in articles_by_id]
+        ordered_articles = _detect_and_store_languages(
+            content_db,
+            articles=ordered_articles,
+            language_detector=language_detector,
+        )
+        content_db.commit()
+
+        theme_client = theme_client or ThemeServiceNetworkingClient()
+        ordered_articles = _classify_and_store_themes(
+            content_db,
+            articles=ordered_articles,
+            theme_client=theme_client,
+        )
+        content_db.commit()
+
+        ner_client = ner_client or NerServiceNetworkingClient()
+        _extract_and_store_ner_mentions(
+            content_db,
+            articles=ordered_articles,
+            ner_client=ner_client,
+        )
+        content_db.commit()
+
         embedding_client = embedding_client or EmbeddingServiceNetworkingClient()
         qdrant_client = qdrant_client or QdrantEmbeddingClient()
-        ordered_articles = [articles_by_id[article_id] for article_id in article_ids if article_id in articles_by_id]
         response = embedding_client.embed_documents(
             EmbeddingServiceRequestSchema(
                 input=[_build_document_text(article.title, article.summary) for article in ordered_articles],
@@ -133,6 +168,65 @@ def _resolve_article_ids(task: ClaimedEmbeddingTask) -> list[int]:
 
 def _build_document_text(title: str, summary: str | None) -> str:
     return "\n\n".join(part.strip() for part in (title, summary or "") if part and part.strip())
+
+
+def _detect_and_store_languages(
+    db: Session,
+    *,
+    articles: list[ArticleEmbeddingIndexRead],
+    language_detector: FastTextLikeDetector | None,
+) -> list[ArticleEmbeddingIndexRead]:
+    enriched_articles: list[ArticleEmbeddingIndexRead] = []
+    for article in articles:
+        language = detect_article_language(
+            country=article.country,
+            title=article.title,
+            summary=article.summary,
+            detector=language_detector,
+        )
+        update_article_language(db, article_id=article.article_id, language=language)
+        enriched_articles.append(article.model_copy(update={"language": language}))
+    return enriched_articles
+
+
+def _classify_and_store_themes(
+    db: Session,
+    *,
+    articles: list[ArticleEmbeddingIndexRead],
+    theme_client: ThemeServiceNetworkingClient,
+) -> list[ArticleEmbeddingIndexRead]:
+    enriched_articles: list[ArticleEmbeddingIndexRead] = []
+    for article in articles:
+        response = theme_client.classify_article(
+            ThemeServiceRequestSchema(
+                article_id=article.article_id,
+                title=article.title,
+                summary=article.summary,
+                language=article.language,
+            )
+        )
+        replace_article_themes(db, article_id=article.article_id, themes=response.themes)
+        enriched_articles.append(article.model_copy(update={"themes": response.themes}))
+    return enriched_articles
+
+
+def _extract_and_store_ner_mentions(
+    db: Session,
+    *,
+    articles: list[ArticleEmbeddingIndexRead],
+    ner_client: NerServiceNetworkingClient,
+) -> None:
+    for article in articles:
+        response = ner_client.extract_article_entities(
+            NerServiceRequestSchema(
+                article_id=article.article_id,
+                title=article.title,
+                summary=article.summary,
+                language=article.language,
+                themes=[theme.theme for theme in article.themes],
+            )
+        )
+        replace_article_ner_mentions(db, article_id=article.article_id, mentions=response.entities)
 
 
 def _finalize_indexing_task(
