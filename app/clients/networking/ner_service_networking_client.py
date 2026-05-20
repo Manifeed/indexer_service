@@ -7,7 +7,12 @@ from app.domain.config import (
     resolve_ner_service_url,
     resolve_pipeline_service_timeout_seconds,
 )
-from app.schemas.indexer_schema import NerServiceRequestSchema, NerServiceResponseRead
+from app.schemas.indexer_schema import (
+    NerServiceBatchRequestSchema,
+    NerServiceBatchResponseRead,
+    NerServiceRequestSchema,
+    NerServiceResponseRead,
+)
 
 
 class NerServiceClientError(RuntimeError):
@@ -22,14 +27,19 @@ class NerServiceNetworkingClient:
         self._http_client = http_client
 
     def extract_article_entities(self, payload: NerServiceRequestSchema) -> NerServiceResponseRead:
+        batch_response = self.extract_article_entities_batch(NerServiceBatchRequestSchema(items=[payload]))
+        item = batch_response.data[0]
+        return NerServiceResponseRead(entities=item.entities)
+
+    def extract_article_entities_batch(self, payload: NerServiceBatchRequestSchema) -> NerServiceBatchResponseRead:
         response = self._request(
             method="POST",
-            path="/v1/entities",
+            path="/v1/entities/batch",
             json=payload.model_dump(mode="json"),
         )
         if response.status_code >= 400:
             raise NerServiceClientError(f"ner_service returned HTTP {response.status_code}: {response.text}")
-        return NerServiceResponseRead.model_validate(response.json())
+        return NerServiceBatchResponseRead.model_validate(response.json())
 
     def check_ready(self) -> None:
         response = self._request(method="GET", path="/internal/ready")

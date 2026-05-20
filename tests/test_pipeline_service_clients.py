@@ -4,7 +4,7 @@ import httpx
 
 from app.clients.networking.ner_service_networking_client import NerServiceNetworkingClient
 from app.clients.networking.theme_service_networking_client import ThemeServiceNetworkingClient
-from app.schemas.indexer_schema import NerServiceRequestSchema, ThemeServiceRequestSchema
+from app.schemas.indexer_schema import NerServiceBatchRequestSchema, NerServiceRequestSchema, ThemeServiceRequestSchema
 
 
 class FakeHttpClient:
@@ -15,8 +15,19 @@ class FakeHttpClient:
         self.requests.append({"method": method, "url": url, "json": json, "headers": headers})
         if url.endswith("/v1/themes"):
             return httpx.Response(200, json={"themes": [{"theme": "politics", "confidence": 0.8}]})
-        if url.endswith("/v1/entities"):
-            return httpx.Response(200, json={"entities": [{"label": "PERSON", "text": "Ada", "score": 0.9}]})
+        if url.endswith("/v1/entities/batch"):
+            return httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "index": 0,
+                            "article_id": 1,
+                            "entities": [{"label": "PERSON", "text": "Ada", "score": 0.9}],
+                        }
+                    ]
+                },
+            )
         return httpx.Response(200, json={"service": "service", "status": "ready"})
 
 
@@ -35,20 +46,25 @@ def test_theme_service_client_posts_theme_payload(monkeypatch) -> None:
     assert http_client.requests[0]["headers"] == {"Authorization": "Bearer secret"}
 
 
-def test_ner_service_client_posts_theme_list(monkeypatch) -> None:
+def test_ner_service_client_posts_batch_payload(monkeypatch) -> None:
     monkeypatch.setenv("NER_SERVICE_URL", "http://ner-service:8000")
     http_client = FakeHttpClient()
     client = NerServiceNetworkingClient(http_client=http_client)  # type: ignore[arg-type]
 
-    response = client.extract_article_entities(
-        NerServiceRequestSchema(
-            article_id=1,
-            title="Ada works at OpenAI",
-            summary=None,
-            language="en",
-            themes=["technology"],
+    response = client.extract_article_entities_batch(
+        NerServiceBatchRequestSchema(
+            items=[
+                NerServiceRequestSchema(
+                    article_id=1,
+                    title="Ada works at OpenAI",
+                    summary=None,
+                    language="en",
+                    themes=["technology"],
+                )
+            ]
         )
     )
 
-    assert response.entities[0].label == "PERSON"
-    assert http_client.requests[0]["json"]["themes"] == ["technology"]  # type: ignore[index]
+    assert response.data[0].entities[0].label == "PERSON"
+    assert http_client.requests[0]["url"] == "http://ner-service:8000/v1/entities/batch"
+    assert http_client.requests[0]["json"]["items"][0]["themes"] == ["technology"]  # type: ignore[index]

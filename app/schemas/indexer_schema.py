@@ -78,6 +78,10 @@ class NerServiceRequestSchema(BaseModel):
     themes: list[ArticleTheme] = Field(default_factory=list)
 
 
+class NerServiceBatchRequestSchema(BaseModel):
+    items: list[NerServiceRequestSchema] = Field(min_length=1, max_length=256)
+
+
 class ArticleNerMentionRead(BaseModel):
     label: str = Field(min_length=1, max_length=120)
     text: str = Field(min_length=1)
@@ -88,6 +92,16 @@ class ArticleNerMentionRead(BaseModel):
 
 class NerServiceResponseRead(BaseModel):
     entities: list[ArticleNerMentionRead] = Field(default_factory=list)
+
+
+class NerServiceBatchItemRead(BaseModel):
+    index: int = Field(ge=0)
+    article_id: int = Field(ge=1)
+    entities: list[ArticleNerMentionRead] = Field(default_factory=list)
+
+
+class NerServiceBatchResponseRead(BaseModel):
+    data: list[NerServiceBatchItemRead] = Field(default_factory=list)
 
 
 class FeedIndexPayloadRead(BaseModel):

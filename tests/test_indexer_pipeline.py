@@ -9,7 +9,8 @@ from app.schemas.indexer_schema import (
     ArticleThemeRead,
     EmbeddingServiceItemRead,
     EmbeddingServiceResponseRead,
-    NerServiceResponseRead,
+    NerServiceBatchItemRead,
+    NerServiceBatchResponseRead,
     SparseEmbeddingRead,
     ThemeServiceResponseRead,
 )
@@ -38,19 +39,26 @@ class FakeThemeClient:
 
 class FakeNerClient:
     def __init__(self) -> None:
-        self.received_themes: list[str] = []
+        self.received_themes: list[list[str]] = []
 
-    def extract_article_entities(self, payload):
-        self.received_themes = list(payload.themes)
-        return NerServiceResponseRead(
-            entities=[
-                ArticleNerMentionRead(
-                    label="PERSON",
-                    text="Ada",
-                    score=0.9,
-                    start_offset=0,
-                    end_offset=3,
+    def extract_article_entities_batch(self, payload):
+        self.received_themes = [list(item.themes) for item in payload.items]
+        return NerServiceBatchResponseRead(
+            data=[
+                NerServiceBatchItemRead(
+                    index=index,
+                    article_id=item.article_id,
+                    entities=[
+                        ArticleNerMentionRead(
+                            label="PERSON",
+                            text="Ada",
+                            score=0.9,
+                            start_offset=0,
+                            end_offset=3,
+                        )
+                    ],
                 )
+                for index, item in enumerate(payload.items)
             ]
         )
 
@@ -149,7 +157,7 @@ def test_index_claimed_embedding_task_runs_pipeline_before_qdrant(monkeypatch) -
     assert indexed_count == 1
     assert updates["language"] == "fr"
     assert [theme.theme for theme in updates["themes"]] == ["politics"]  # type: ignore[index]
-    assert ner_client.received_themes == ["politics"]
+    assert ner_client.received_themes == [["politics"]]
     assert qdrant_client.article_language == "fr"
     assert qdrant_client.article_themes == ["politics"]
     assert updates["indexed"] == 42

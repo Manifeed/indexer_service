@@ -12,7 +12,6 @@ from app.clients.database.article_embedding_database_client import (
     upsert_embedding_manifest_failed,
     upsert_embedding_manifest_indexed,
 )
-from app.clients.networking.ner_service_networking_client import NerServiceNetworkingClient
 from app.clients.database.worker_task_database_client import (
     ClaimedEmbeddingTask,
     RUNTIME_COUNTER_PAYLOAD_REBUILD_FAILURES,
@@ -22,6 +21,7 @@ from app.clients.database.worker_task_database_client import (
     refresh_worker_job_status,
 )
 from app.clients.networking.embedding_service_networking_client import EmbeddingServiceNetworkingClient
+from app.clients.networking.ner_service_networking_client import NerServiceNetworkingClient
 from app.clients.networking.theme_service_networking_client import ThemeServiceNetworkingClient
 from app.clients.qdrant.qdrant_embedding_client import QdrantEmbeddingClient
 from app.domain.config import BGE_M3_MODEL_NAME
@@ -29,6 +29,7 @@ from app.domain.language_detection import FastTextLikeDetector, detect_article_l
 from app.schemas.indexer_schema import (
     ArticleEmbeddingIndexRead,
     EmbeddingServiceRequestSchema,
+    NerServiceBatchRequestSchema,
     NerServiceRequestSchema,
     ThemeServiceRequestSchema,
 )
@@ -216,8 +217,8 @@ def _extract_and_store_ner_mentions(
     articles: list[ArticleEmbeddingIndexRead],
     ner_client: NerServiceNetworkingClient,
 ) -> None:
-    for article in articles:
-        response = ner_client.extract_article_entities(
+    payload = NerServiceBatchRequestSchema(
+        items=[
             NerServiceRequestSchema(
                 article_id=article.article_id,
                 title=article.title,
@@ -225,8 +226,18 @@ def _extract_and_store_ner_mentions(
                 language=article.language,
                 themes=[theme.theme for theme in article.themes],
             )
+            for article in articles
+        ]
+    )
+    response = ner_client.extract_article_entities_batch(payload)
+    items_by_article_id = {item.article_id: item for item in response.data}
+    for article in articles:
+        item = items_by_article_id.get(article.article_id)
+        replace_article_ner_mentions(
+            db,
+            article_id=article.article_id,
+            mentions=[] if item is None else item.entities,
         )
-        replace_article_ner_mentions(db, article_id=article.article_id, mentions=response.entities)
 
 
 def _finalize_indexing_task(
@@ -270,14 +281,13 @@ def _mark_batch_failed(
             content_db,
             article_id=article_id,
             model_name=BGE_M3_MODEL_NAME,
-            error_message="embedding batch failed before indexing completed",
+            error_message="embedding batch failed",
         )
     content_db.commit()
     _finalize_indexing_task(
         workers_db,
         task=task,
         item_success=0,
-        item_error=max(len(article_ids), task.item_total),
+        item_error=task.item_total,
         failed=True,
-        error_message="embedding batch failed before indexing completed",
     )
