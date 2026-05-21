@@ -3,7 +3,6 @@ from __future__ import annotations
 from app.clients.database.article_embedding_database_client import (
     replace_article_ner_mentions,
     replace_article_themes,
-    update_article_language,
 )
 from app.schemas.indexer_schema import ArticleNerMentionRead, ArticleThemeRead
 
@@ -14,14 +13,6 @@ class FakeDb:
 
     def execute(self, statement, params=None):
         self.calls.append((str(statement), params))
-
-
-def test_update_article_language_normalizes_language() -> None:
-    db = FakeDb()
-
-    update_article_language(db, article_id=7, language="FR")  # type: ignore[arg-type]
-
-    assert db.calls[0][1] == {"article_id": 7, "language": "fr"}
 
 
 def test_replace_article_themes_deletes_then_upserts_themes() -> None:

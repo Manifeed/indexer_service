@@ -99,6 +99,7 @@ def test_index_claimed_embedding_task_runs_pipeline_before_qdrant(monkeypatch) -
         company_id=1,
         company="Company",
         country="fr",
+        language="fr ",
         published_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
     content_db = FakeDb()
@@ -111,11 +112,6 @@ def test_index_claimed_embedding_task_runs_pipeline_before_qdrant(monkeypatch) -
         module_under_test,
         "get_article_embedding_index_reads",
         lambda db, *, article_ids: {42: article},
-    )
-    monkeypatch.setattr(
-        module_under_test,
-        "update_article_language",
-        lambda db, *, article_id, language: updates.setdefault("language", language),
     )
     monkeypatch.setattr(
         module_under_test,
@@ -155,9 +151,82 @@ def test_index_claimed_embedding_task_runs_pipeline_before_qdrant(monkeypatch) -
     )
 
     assert indexed_count == 1
-    assert updates["language"] == "fr"
     assert [theme.theme for theme in updates["themes"]] == ["politics"]  # type: ignore[index]
     assert ner_client.received_themes == [["politics"]]
     assert qdrant_client.article_language == "fr"
     assert qdrant_client.article_themes == ["politics"]
     assert updates["indexed"] == 42
+    assert content_db.commits == 3
+
+
+def test_index_claimed_embedding_task_preserves_three_letter_language_codes(monkeypatch) -> None:
+    article = ArticleEmbeddingIndexRead(
+        article_id=7,
+        article_key="key-7",
+        url="https://example.com/7",
+        title="Titre",
+        summary="Resume",
+        company_id=1,
+        company="Company",
+        country="ma",
+        language="arz",
+        published_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    content_db = FakeDb()
+    workers_db = FakeDb()
+    qdrant_client = FakeQdrantClient()
+    seen_languages: dict[str, object] = {}
+
+    class ThreeLetterThemeClient:
+        def classify_article(self, payload):
+            seen_languages["theme"] = payload.language
+            return ThemeServiceResponseRead(
+                themes=[ArticleThemeRead(theme="politics", confidence=0.8)]
+            )
+
+    class ThreeLetterNerClient:
+        def extract_article_entities_batch(self, payload):
+            seen_languages["ner"] = [item.language for item in payload.items]
+            return NerServiceBatchResponseRead(
+                data=[
+                    NerServiceBatchItemRead(
+                        index=index,
+                        article_id=item.article_id,
+                        entities=[],
+                    )
+                    for index, item in enumerate(payload.items)
+                ]
+            )
+
+    monkeypatch.setattr(
+        module_under_test,
+        "get_article_embedding_index_reads",
+        lambda db, *, article_ids: {7: article},
+    )
+    monkeypatch.setattr(module_under_test, "replace_article_themes", lambda db, *, article_id, themes: None)
+    monkeypatch.setattr(module_under_test, "replace_article_ner_mentions", lambda db, *, article_id, mentions: None)
+    monkeypatch.setattr(module_under_test, "upsert_embedding_manifest_indexed", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module_under_test, "_finalize_indexing_task", lambda *args, **kwargs: None)
+
+    indexed_count = module_under_test.index_claimed_embedding_task(
+        content_db,  # type: ignore[arg-type]
+        workers_db,  # type: ignore[arg-type]
+        task=ClaimedEmbeddingTask(
+            task_id=1,
+            execution_id=2,
+            job_id="job",
+            ref_ids=[7],
+            item_total=1,
+        ),
+        theme_client=ThreeLetterThemeClient(),  # type: ignore[arg-type]
+        ner_client=ThreeLetterNerClient(),  # type: ignore[arg-type]
+        embedding_client=FakeEmbeddingClient(),  # type: ignore[arg-type]
+        qdrant_client=qdrant_client,  # type: ignore[arg-type]
+    )
+
+    assert indexed_count == 1
+    assert seen_languages == {
+        "theme": "arz",
+        "ner": ["arz"],
+    }
+    assert qdrant_client.article_language == "arz"

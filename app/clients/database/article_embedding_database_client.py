@@ -106,27 +106,6 @@ def upsert_embedding_manifest_failed(
     )
 
 
-def update_article_language(
-    db: Session,
-    *,
-    article_id: int,
-    language: str,
-) -> None:
-    db.execute(
-        text(
-            """
-            UPDATE articles
-            SET language = COALESCE(NULLIF(:language, ''), 'xx')
-            WHERE article_id = :article_id
-            """
-        ),
-        {
-            "article_id": article_id,
-            "language": language[:2].lower(),
-        },
-    )
-
-
 def replace_article_themes(
     db: Session,
     *,
