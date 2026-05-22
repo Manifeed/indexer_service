@@ -19,9 +19,10 @@ For each claimed embedding task, the service:
 1. Reads a message from Redis containing a task ID.
 2. Claims the corresponding task in the workers database.
 3. Rebuilds the list of target articles from the content database.
-4. Calls `bge-m3_inference` to generate dense and sparse embeddings.
-5. Writes the embedding payload into Qdrant.
-6. Marks embedding manifest rows and worker task execution status as completed
+4. Calls `ner_service` (batch) to extract entity mentions and stores them in PostgreSQL.
+5. Calls `bge-m3_inference` to generate dense and sparse embeddings.
+6. Writes the embedding payload into Qdrant.
+7. Marks embedding manifest rows and worker task execution status as completed
    or failed.
 
 ## What It Does Not Do
@@ -36,6 +37,7 @@ For each claimed embedding task, the service:
 - PostgreSQL content database
 - PostgreSQL workers database
 - Redis
+- `ner_service`
 - `bge-m3_inference`
 - Qdrant
 

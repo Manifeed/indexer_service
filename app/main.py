@@ -8,7 +8,6 @@ from fastapi import FastAPI
 from app.clients.networking.embedding_service_networking_client import EmbeddingServiceNetworkingClient
 from app.clients.networking.ner_service_networking_client import NerServiceNetworkingClient
 from app.clients.networking.redis_queue_client import RedisQueueClient
-from app.clients.networking.theme_service_networking_client import ThemeServiceNetworkingClient
 from app.clients.qdrant.qdrant_embedding_client import QdrantEmbeddingClient
 from app.database import check_database_ready, check_workers_database_ready
 from app.domain.config import should_start_consumer
@@ -40,7 +39,6 @@ def create_app() -> FastAPI:
         check_database_ready()
         check_workers_database_ready()
         RedisQueueClient().check_ready()
-        ThemeServiceNetworkingClient().check_ready()
         NerServiceNetworkingClient().check_ready()
         EmbeddingServiceNetworkingClient().check_ready()
         QdrantEmbeddingClient().check_ready()

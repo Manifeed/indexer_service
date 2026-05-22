@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -41,58 +40,10 @@ class EmbeddingServiceResponseRead(BaseModel):
     data: list[EmbeddingServiceItemRead]
 
 
-ArticleTheme = Literal[
-    "economy",
-    "sports",
-    "society",
-    "news",
-    "politics",
-    "technology",
-    "science",
-    "culture",
-    "health",
-    "environment",
-    "world",
-    "justice",
-    "education",
-    "business",
-    "finance",
-    "other",
-]
-
-
-class ArticleThemeRead(BaseModel):
-    theme: ArticleTheme
-    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
-
-
-class ThemeServiceRequestSchema(BaseModel):
-    article_id: int = Field(ge=1)
-    title: str
-    summary: str | None = None
-    language: str = Field(default="xx", min_length=2, max_length=3)
-
-    @field_validator("language", mode="before")
-    @classmethod
-    def normalize_language(cls, value: object) -> str:
-        return _normalize_alpha_code(value)
-
-
-class ThemeServiceResponseRead(BaseModel):
-    themes: list[ArticleThemeRead] = Field(default_factory=list)
-
-
 class NerServiceRequestSchema(BaseModel):
     article_id: int = Field(ge=1)
     title: str
     summary: str | None = None
-    language: str = Field(default="xx", min_length=2, max_length=3)
-    themes: list[ArticleTheme] = Field(default_factory=list)
-
-    @field_validator("language", mode="before")
-    @classmethod
-    def normalize_language(cls, value: object) -> str:
-        return _normalize_alpha_code(value)
 
 
 class NerServiceBatchRequestSchema(BaseModel):
@@ -105,10 +56,6 @@ class ArticleNerMentionRead(BaseModel):
     score: float | None = Field(default=None, ge=0.0, le=1.0)
     start_offset: int | None = Field(default=None, ge=0)
     end_offset: int | None = Field(default=None, ge=0)
-
-
-class NerServiceResponseRead(BaseModel):
-    entities: list[ArticleNerMentionRead] = Field(default_factory=list)
 
 
 class NerServiceBatchItemRead(BaseModel):
@@ -141,7 +88,6 @@ class ArticleEmbeddingIndexRead(BaseModel):
     company: str | None = None
     country: str = Field(default="xx", min_length=2, max_length=2)
     language: str = Field(default="xx", min_length=2, max_length=3)
-    themes: list[ArticleThemeRead] = Field(default_factory=list)
     published_at: datetime | None = None
     feeds: list[FeedIndexPayloadRead] = Field(default_factory=list)
     authors: list[AuthorIndexPayloadRead] = Field(default_factory=list)

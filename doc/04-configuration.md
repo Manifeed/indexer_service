@@ -59,8 +59,8 @@
 
 ## Static Model Metadata
 
-- embedding model name written to manifests: `BAAI/bge-m3`
 - embedding request model field: `bge-m3`
+- embedding manifests track indexing status only (no per-row model name)
 
 ## Minimal Local Example
 

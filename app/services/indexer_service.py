@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from app.clients.database.article_embedding_database_client import (
     get_article_embedding_index_reads,
     replace_article_ner_mentions,
-    replace_article_themes,
     upsert_embedding_manifest_failed,
     upsert_embedding_manifest_indexed,
 )
@@ -21,15 +20,12 @@ from app.clients.database.worker_task_database_client import (
 )
 from app.clients.networking.embedding_service_networking_client import EmbeddingServiceNetworkingClient
 from app.clients.networking.ner_service_networking_client import NerServiceNetworkingClient
-from app.clients.networking.theme_service_networking_client import ThemeServiceNetworkingClient
 from app.clients.qdrant.qdrant_embedding_client import QdrantEmbeddingClient
-from app.domain.config import BGE_M3_MODEL_NAME
 from app.schemas.indexer_schema import (
     ArticleEmbeddingIndexRead,
     EmbeddingServiceRequestSchema,
     NerServiceBatchRequestSchema,
     NerServiceRequestSchema,
-    ThemeServiceRequestSchema,
 )
 
 
@@ -43,7 +39,6 @@ def index_claimed_embedding_task(
     *,
     task: ClaimedEmbeddingTask,
     embedding_client: EmbeddingServiceNetworkingClient | None = None,
-    theme_client: ThemeServiceNetworkingClient | None = None,
     ner_client: NerServiceNetworkingClient | None = None,
     qdrant_client: QdrantEmbeddingClient | None = None,
 ) -> int:
@@ -66,13 +61,6 @@ def index_claimed_embedding_task(
 
     try:
         ordered_articles = [articles_by_id[article_id] for article_id in article_ids if article_id in articles_by_id]
-        theme_client = theme_client or ThemeServiceNetworkingClient()
-        ordered_articles = _classify_and_store_themes(
-            content_db,
-            articles=ordered_articles,
-            theme_client=theme_client,
-        )
-        content_db.commit()
 
         ner_client = ner_client or NerServiceNetworkingClient()
         _extract_and_store_ner_mentions(
@@ -80,7 +68,6 @@ def index_claimed_embedding_task(
             articles=ordered_articles,
             ner_client=ner_client,
         )
-        content_db.commit()
 
         embedding_client = embedding_client or EmbeddingServiceNetworkingClient()
         qdrant_client = qdrant_client or QdrantEmbeddingClient()
@@ -107,7 +94,6 @@ def index_claimed_embedding_task(
                 upsert_embedding_manifest_failed(
                     content_db,
                     article_id=article.article_id,
-                    model_name=BGE_M3_MODEL_NAME,
                     error_message="bge-m3_inference response missing expected dense or sparse vectors",
                 )
                 error_count += 1
@@ -121,7 +107,6 @@ def index_claimed_embedding_task(
                 upsert_embedding_manifest_indexed(
                     content_db,
                     article_id=article.article_id,
-                    model_name=BGE_M3_MODEL_NAME,
                     indexed_at=indexed_at,
                 )
                 indexed_count += 1
@@ -129,7 +114,6 @@ def index_claimed_embedding_task(
                 upsert_embedding_manifest_failed(
                     content_db,
                     article_id=article.article_id,
-                    model_name=BGE_M3_MODEL_NAME,
                     error_message=str(exception),
                 )
                 error_count += 1
@@ -161,27 +145,6 @@ def _build_document_text(title: str, summary: str | None) -> str:
     return "\n\n".join(part.strip() for part in (title, summary or "") if part and part.strip())
 
 
-def _classify_and_store_themes(
-    db: Session,
-    *,
-    articles: list[ArticleEmbeddingIndexRead],
-    theme_client: ThemeServiceNetworkingClient,
-) -> list[ArticleEmbeddingIndexRead]:
-    enriched_articles: list[ArticleEmbeddingIndexRead] = []
-    for article in articles:
-        response = theme_client.classify_article(
-            ThemeServiceRequestSchema(
-                article_id=article.article_id,
-                title=article.title,
-                summary=article.summary,
-                language=article.language,
-            )
-        )
-        replace_article_themes(db, article_id=article.article_id, themes=response.themes)
-        enriched_articles.append(article.model_copy(update={"themes": response.themes}))
-    return enriched_articles
-
-
 def _extract_and_store_ner_mentions(
     db: Session,
     *,
@@ -194,8 +157,6 @@ def _extract_and_store_ner_mentions(
                 article_id=article.article_id,
                 title=article.title,
                 summary=article.summary,
-                language=article.language,
-                themes=[theme.theme for theme in article.themes],
             )
             for article in articles
         ]
@@ -251,7 +212,6 @@ def _mark_batch_failed(
         upsert_embedding_manifest_failed(
             content_db,
             article_id=article_id,
-            model_name=BGE_M3_MODEL_NAME,
             error_message="embedding batch failed",
         )
     content_db.commit()

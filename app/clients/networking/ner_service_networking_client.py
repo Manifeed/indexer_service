@@ -10,8 +10,6 @@ from app.domain.config import (
 from app.schemas.indexer_schema import (
     NerServiceBatchRequestSchema,
     NerServiceBatchResponseRead,
-    NerServiceRequestSchema,
-    NerServiceResponseRead,
 )
 
 
@@ -25,11 +23,6 @@ class NerServiceNetworkingClient:
         self.api_key = resolve_ner_service_api_key()
         self.timeout_seconds = resolve_pipeline_service_timeout_seconds()
         self._http_client = http_client
-
-    def extract_article_entities(self, payload: NerServiceRequestSchema) -> NerServiceResponseRead:
-        batch_response = self.extract_article_entities_batch(NerServiceBatchRequestSchema(items=[payload]))
-        item = batch_response.data[0]
-        return NerServiceResponseRead(entities=item.entities)
 
     def extract_article_entities_batch(self, payload: NerServiceBatchRequestSchema) -> NerServiceBatchResponseRead:
         response = self._request(
